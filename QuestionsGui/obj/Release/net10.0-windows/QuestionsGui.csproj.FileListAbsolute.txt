@@ -1,0 +1,17 @@
+C:\Users\user\Desktop\sodium\QuestionsGui\bin\Release\net10.0-windows\QuestionsGui.exe
+C:\Users\user\Desktop\sodium\QuestionsGui\bin\Release\net10.0-windows\QuestionsGui.deps.json
+C:\Users\user\Desktop\sodium\QuestionsGui\bin\Release\net10.0-windows\QuestionsGui.runtimeconfig.json
+C:\Users\user\Desktop\sodium\QuestionsGui\bin\Release\net10.0-windows\QuestionsGui.dll
+C:\Users\user\Desktop\sodium\QuestionsGui\bin\Release\net10.0-windows\QuestionsGui.pdb
+C:\Users\user\Desktop\sodium\QuestionsGui\obj\Release\net10.0-windows\QuestionsGui.Form1.resources
+C:\Users\user\Desktop\sodium\QuestionsGui\obj\Release\net10.0-windows\QuestionsGui.csproj.GenerateResource.cache
+C:\Users\user\Desktop\sodium\QuestionsGui\obj\Release\net10.0-windows\QuestionsGui.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\user\Desktop\sodium\QuestionsGui\obj\Release\net10.0-windows\QuestionsGui.AssemblyInfoInputs.cache
+C:\Users\user\Desktop\sodium\QuestionsGui\obj\Release\net10.0-windows\QuestionsGui.AssemblyInfo.cs
+C:\Users\user\Desktop\sodium\QuestionsGui\obj\Release\net10.0-windows\QuestionsGui.csproj.CoreCompileInputs.cache
+C:\Users\user\Desktop\sodium\QuestionsGui\obj\Release\net10.0-windows\QuestionsGui.sourcelink.json
+C:\Users\user\Desktop\sodium\QuestionsGui\obj\Release\net10.0-windows\QuestionsGui.dll
+C:\Users\user\Desktop\sodium\QuestionsGui\obj\Release\net10.0-windows\refint\QuestionsGui.dll
+C:\Users\user\Desktop\sodium\QuestionsGui\obj\Release\net10.0-windows\QuestionsGui.pdb
+C:\Users\user\Desktop\sodium\QuestionsGui\obj\Release\net10.0-windows\QuestionsGui.genruntimeconfig.cache
+C:\Users\user\Desktop\sodium\QuestionsGui\obj\Release\net10.0-windows\ref\QuestionsGui.dll
