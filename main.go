@@ -122,26 +122,6 @@ func bcryptPassword(password string) (string, error) {
 	return string(hash), nil
 }
 
-// convertObjectID converts ObjectIDs found in a bson.M (and nested values) to strings.
-func convertObjectID(data interface{}) interface{} {
-	switch v := data.(type) {
-	case bson.M:
-		for key, value := range v {
-			v[key] = convertObjectID(value)
-		}
-		return v
-	case primitive.ObjectID:
-		return v.Hex()
-	case []interface{}:
-		for i, item := range v {
-			v[i] = convertObjectID(item)
-		}
-		return v
-	default:
-		return data
-	}
-}
-
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -237,11 +217,7 @@ func handleListUsernames(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleDeleteQuestion(w http.ResponseWriter, r *http.Request) {
-	questionID, err := primitive.ObjectIDFromHex(r.PathValue("question_id"))
-	if err != nil {
-		http.Error(w, "Invalid question ID", http.StatusBadRequest)
-		return
-	}
+	questionID := r.PathValue("question_id")
 
 	tokenUserID, err := userIDFromToken(r)
 	if err != nil {
@@ -249,13 +225,9 @@ func handleDeleteQuestion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var question bson.M
-	err = db.Collection("questions").FindOne(context.Background(), bson.M{"_id": questionID}).Decode(&question)
-	if err == mongo.ErrNoDocuments {
+	question, err := mongoGetQuestion(questionID)
+	if err != nil {
 		http.Error(w, "Question not found", http.StatusNotFound)
-		return
-	} else if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -265,12 +237,12 @@ func handleDeleteQuestion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := db.Collection("questions").DeleteOne(context.Background(), bson.M{"_id": questionID})
+	deleted, err := mongoDeleteQuestion(questionID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if result.DeletedCount == 0 {
+	if !deleted {
 		http.Error(w, "Question not found", http.StatusNotFound)
 		return
 	}
@@ -304,65 +276,48 @@ func handleCreateQuestion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	questionID := primitive.NewObjectID()
+	id, err := mongoInsertQuestion(
+		data["title"].(string),
+		data["body"].(string),
+		data["tags"],
+		userID.Hex(),
+	)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	question := bson.M{
-		"_id":        questionID,
+		"_id":        id,
 		"title":      data["title"],
 		"body":       data["body"],
 		"tags":       data["tags"],
 		"user_id":    userID.Hex(),
-		"created_at": time.Now().UTC(),
-		"updated_at": time.Now().UTC(),
+		"created_at": nowStr(),
+		"updated_at": nowStr(),
 		"views":      0,
 		"votes":      0,
 		"answers":    []interface{}{},
 	}
-
-	_, err = db.Collection("questions").InsertOne(context.Background(), question)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	question["_id"] = questionID.Hex()
 	writeJSON(w, http.StatusCreated, question)
 }
 
 func handleListQuestions(w http.ResponseWriter, r *http.Request) {
-	cursor, err := db.Collection("questions").Find(context.Background(), bson.M{})
+	questions, err := mongoListQuestions()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
-	}
-	defer cursor.Close(context.Background())
-
-	var questions []interface{}
-	for cursor.Next(context.Background()) {
-		var q bson.M
-		if err := cursor.Decode(&q); err != nil {
-			continue
-		}
-		questions = append(questions, convertObjectID(q))
 	}
 	writeJSON(w, http.StatusOK, questions)
 }
 
 func handleGetQuestion(w http.ResponseWriter, r *http.Request) {
-	questionID, err := primitive.ObjectIDFromHex(r.PathValue("question_id"))
+	question, err := mongoGetQuestion(r.PathValue("question_id"))
 	if err != nil {
-		http.Error(w, "Invalid question ID", http.StatusBadRequest)
-		return
-	}
-
-	var question bson.M
-	err = db.Collection("questions").FindOne(context.Background(), bson.M{"_id": questionID}).Decode(&question)
-	if err == mongo.ErrNoDocuments {
 		http.Error(w, "Question not found", http.StatusNotFound)
 		return
-	} else if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
 	}
-	writeJSON(w, http.StatusOK, convertObjectID(question))
+	writeJSON(w, http.StatusOK, question)
 }
 
 func handleCreateAnswer(w http.ResponseWriter, r *http.Request) {
@@ -392,65 +347,108 @@ func handleCreateAnswer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	questionID, err := primitive.ObjectIDFromHex(data["question_id"].(string))
-	if err != nil {
+	questionID, ok := data["question_id"].(string)
+	if !ok {
 		http.Error(w, "Invalid question ID", http.StatusBadRequest)
 		return
 	}
-	var question bson.M
-	err = db.Collection("questions").FindOne(context.Background(), bson.M{"_id": questionID}).Decode(&question)
-	if err == mongo.ErrNoDocuments {
+	if _, err := mongoGetQuestion(questionID); err != nil {
 		writeJSON(w, http.StatusNotFound, bson.M{"error": "Question not found"})
 		return
-	} else if err != nil {
+	}
+
+	id, err := mongoInsertAnswer(questionID, userID.Hex(), data["body"].(string))
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	answerID := primitive.NewObjectID()
 	answer := bson.M{
-		"_id":         answerID,
-		"question_id": questionID.Hex(),
+		"_id":         id,
+		"question_id": questionID,
 		"user_id":     userID.Hex(),
 		"body":        data["body"],
-		"created_at":  time.Now().UTC(),
-		"updated_at":  time.Now().UTC(),
+		"created_at":  nowStr(),
+		"updated_at":  nowStr(),
 		"votes":       0,
 		"comments":    []interface{}{},
 	}
-
-	_, err = db.Collection("answers").InsertOne(context.Background(), answer)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	answer["_id"] = answerID.Hex()
 	writeJSON(w, http.StatusCreated, answer)
 }
 
-func handleGetAnswers(w http.ResponseWriter, r *http.Request) {
-	questionID, err := primitive.ObjectIDFromHex(r.PathValue("question_id"))
+func handleVoteAnswer(w http.ResponseWriter, r *http.Request) {
+	answerID := r.PathValue("answer_id")
+
+	_, err := userIDFromToken(r)
 	if err != nil {
-		http.Error(w, "Invalid question ID", http.StatusBadRequest)
+		writeJSON(w, http.StatusUnauthorized, bson.M{"error": err.Error()})
 		return
 	}
 
-	cursor, err := db.Collection("answers").Find(context.Background(), bson.M{"question_id": questionID.Hex()})
+	if _, err := mongoGetAnswer(answerID); err != nil {
+		http.Error(w, "Answer not found", http.StatusNotFound)
+		return
+	}
+
+	votes, err := mongoVoteAnswer(answerID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	defer cursor.Close(context.Background())
 
-	var answers []interface{}
-	for cursor.Next(context.Background()) {
-		var a bson.M
-		if err := cursor.Decode(&a); err != nil {
-			continue
-		}
-		answers = append(answers, convertObjectID(a))
+	writeJSON(w, http.StatusOK, bson.M{"message": "Vote added", "votes": votes})
+}
+
+func handleGetAnswers(w http.ResponseWriter, r *http.Request) {
+	answers, err := mongoListAnswers(r.PathValue("question_id"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	writeJSON(w, http.StatusOK, answers)
+}
+
+func handleAdVote(w http.ResponseWriter, r *http.Request) {
+	_, err := userIDFromToken(r)
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, bson.M{"error": err.Error()})
+		return
+	}
+
+	questions, err := mongoListQuestions()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if len(questions) == 0 {
+		writeJSON(w, http.StatusNotFound, bson.M{"error": "No questions available. Create a question first."})
+		return
+	}
+	questionID, _ := questions[0]["_id"].(string)
+
+	answers, err := mongoListAnswers(questionID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if len(answers) == 0 {
+		writeJSON(w, http.StatusNotFound, bson.M{"error": "No answers available for this question. Create an answer first."})
+		return
+	}
+	answerID, _ := answers[0]["_id"].(string)
+
+	votes, err := mongoVoteAnswer(answerID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, bson.M{
+		"question_id": questionID,
+		"answer_id":   answerID,
+		"message":     "Vote added",
+		"votes":       votes,
+	})
 }
 
 func main() {
@@ -481,6 +479,11 @@ func main() {
 	mux.HandleFunc("GET /questions/{question_id}/answers", handleGetAnswers)
 
 	mux.HandleFunc("POST /answers", handleCreateAnswer)
+	mux.HandleFunc("POST /answers/{answer_id}/vote", handleVoteAnswer)
+
+	mux.HandleFunc("POST /adVote", handleAdVote)
+
+	mux.HandleFunc("GET /download/db", handleDownloadDB)
 
 	addr := ":" + os.Getenv("PORT")
 	if addr == ":" {
