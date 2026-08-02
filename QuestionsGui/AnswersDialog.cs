@@ -134,6 +134,8 @@ public class AnswersDialog : Form
 
         body.Controls.Clear();
 
+        body.Controls.Add(CreateQuestionBodyCard(question));
+
         if (answers.Count == 0)
         {
             body.Controls.Add(CreateMessage("No answers yet."));
@@ -197,6 +199,60 @@ public class AnswersDialog : Form
         {
             meta.Location = new Point(14, 10);
             bodyLabel.Location = new Point(14, meta.Bottom + 4);
+        };
+
+        card.Paint += (s, e) =>
+        {
+            e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            using var path = Ui.RoundedRect(new Rectangle(0, 0, card.Width - 1, card.Height - 1), 12);
+            using var border = new Pen(Ui.CardBorder);
+            e.Graphics.DrawPath(border, path);
+        };
+
+        return card;
+    }
+
+    private static Panel CreateQuestionBodyCard(Question question)
+    {
+        var card = new Panel
+        {
+            BackColor = Ui.CardBack,
+            Padding = new Padding(14, 12, 14, 12),
+            Margin = new Padding(0, 0, 0, 10),
+            Width = 510
+        };
+
+        var tag = new Label
+        {
+            AutoSize = true,
+            ForeColor = Ui.Primary,
+            Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+            Margin = new Padding(0),
+            Text = "QUESTION"
+        };
+
+        var bodyLabel = new Label
+        {
+            AutoSize = false,
+            ForeColor = Ui.TextDark,
+            Font = new Font("Segoe UI", 9.5f),
+            Margin = new Padding(0),
+            Text = question.Body ?? string.Empty
+        };
+
+        card.Controls.Add(tag);
+        card.Controls.Add(bodyLabel);
+
+        int tagH = TextRenderer.MeasureText(tag.Text, tag.Font).Height;
+        int bodyW = 480;
+        int bodyH = TextRenderer.MeasureText(bodyLabel.Text, bodyLabel.Font, new Size(bodyW, int.MaxValue), TextFormatFlags.WordBreak).Height;
+        bodyLabel.SetBounds(14, 10 + tagH + 6, bodyW, bodyH);
+        card.Height = 14 + tagH + 6 + bodyH + 12;
+
+        card.Resize += (s, e) =>
+        {
+            tag.Location = new Point(14, 10);
+            bodyLabel.Location = new Point(14, tag.Bottom + 6);
         };
 
         card.Paint += (s, e) =>

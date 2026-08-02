@@ -197,6 +197,8 @@ public class Question
     public string? Id { get; set; }
     [JsonPropertyName("title")]
     public string? Title { get; set; }
+    [JsonPropertyName("body")]
+    public string? Body { get; set; }
     [JsonPropertyName("created_at")]
     public DateTime? CreatedAt { get; set; }
     public override string ToString() => Title ?? string.Empty;
